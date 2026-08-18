@@ -20,7 +20,7 @@ from utils.concurrency import limiter
 from utils.file_manager import prepare_and_package, safe_archive_files
 from utils.cleanup import cleanup_orphaned_files
 from utils.scanner import scan_and_upload
-from utils.metadata import fetch_and_process_season_metadata
+from utils.metadata import fetch_and_process_metadata
 
 load_dotenv()
 
@@ -29,22 +29,29 @@ class VideoMetadata:
     file_path: str
     file_name: str
     file_size: int
-    anime_name: str
-    season: int
-    episode: int
-    episode_number: str
-    languages: List[str]
-    language_tag: str
-    quality: str
-    upload_date: str
+    title: str
+    media_type: str = "TV Series"
+    season: Optional[int] = None
+    episode: Optional[int] = None
+    episode_number: Optional[str] = None
+    languages: List[str] = field(default_factory=lambda: ['Original'])
+    language_tag: str = "original"
+    quality: str = "unknown"
+    upload_date: str = ""
     doodstream_url: str = ""
     mixdrop_url: str = ""
     streamtape_url: str = ""
     status: str = "pending"
-    # TMDB Metadata Fields
+    release_year: int = 0
+    total_seasons: int = 0
+    total_episodes: int = 0
+    tmdb_status: str = ""
+    original_language: str = ""
+    networks: List[str] = field(default_factory=list)
+    creators: List[str] = field(default_factory=list)
     tmdb_id: int = 0
     overview: str = ""
-    genres: List[str] = field(default_factory=list)
+    genres: List[Dict[str, str]] = field(default_factory=list)
     vote_average: float = 0.0
     poster_url: str = ""
     banner_url: str = ""
@@ -54,13 +61,18 @@ class AnimeVideoUploader:
     def __init__(self):
         config.print_config()
         supabase_url = os.getenv('SUPABASE_URL')
-        supabase_key = os.getenv('SUPABASE_KEY')
-        self.supabase = create_client(supabase_url, supabase_key)
+        
+        # Standard client for Database operations
+        self.supabase = create_client(supabase_url, os.getenv('SUPABASE_KEY'))
 
-        storage_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-        if not storage_key:
-            tqdm.write("⚠️ SUPABASE_SERVICE_ROLE_KEY missing; Supabase Storage uploads may be blocked by RLS.")
-        self.supabase_storage = create_client(supabase_url, storage_key) if storage_key else self.supabase
+        # Service role client for Storage operations (Bypasses RLS)
+        service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+        if service_key:
+            self.supabase_storage = create_client(supabase_url, service_key)
+        else:
+            tqdm.write("⚠️ SUPABASE_SERVICE_ROLE_KEY missing. Storage uploads may fail due to RLS.")
+            self.supabase_storage = self.supabase
+
         self.dood_ftp_server = os.getenv('DOODSTREAM_FTP_SERVER', config.DOODSTREAM_FTP_SERVER)
         self.dood_username = os.getenv('DOODSTREAM_USERNAME')
         self.dood_password = os.getenv('DOODSTREAM_PASSWORD')
@@ -72,18 +84,52 @@ class AnimeVideoUploader:
 
     def parse_video_filename(self, filename: str) -> Optional[Dict]:
         stem = Path(filename).stem.replace('_', ' ').strip()
-        match = re.search(r'^(?P<anime>.*?)\s*(?:\[(?P<language>[^\]]+)\])?\s*[-]\s*S(?P<season>\d+)E(?P<episode>\d+)\s*[-]\s*(?P<quality>\d{3,4}[Pp])$', stem, re.IGNORECASE)
-        if not match: return None
-        
+
+        # TV Series Regex
+        tv_match = re.search(
+            r'^(?P<title>.*?)\s*(?:\((?P<year>\d{4})\))?\s*(?:\[(?P<language>[^\]]+)\])?\s*[-]\s*S(?P<season>\d+)E(?P<episode>\d+)\s*[-]\s*(?P<quality>\d{3,4}[Pp])$',
+            stem, re.IGNORECASE
+        )
+        if tv_match:
+            return self._build_metadata_dict(tv_match, 'TV Series')
+
+        # Movie Regex
+        movie_match = re.search(
+            r'^(?P<title>.*?)\s*(?:\((?P<year>\d{4})\))?\s*(?:\[(?P<language>[^\]]+)\])?\s*[-]?\s*(?P<quality>\d{3,4}[Pp])$',
+            stem, re.IGNORECASE
+        )
+        if movie_match:
+            return self._build_metadata_dict(movie_match, 'Movie')
+
+        return None
+
+    def _build_metadata_dict(self, match, media_type: str) -> Dict:
+        title = match.group('title').strip()
+        year_str = match.groupdict().get('year')
+
+        # If the year is not parenthesized, extract it from the end of the title.
+        if not year_str:
+            year_match = re.search(r'\b(\d{4})\s*$', title)
+            if year_match:
+                year_str = year_match.group(1)
+                title = title[:year_match.start()].strip()
+
         lang_str = match.group('language')
+        season_str = match.groupdict().get('season')
+        episode_str = match.groupdict().get('episode')
         langs = ['Original']
         if lang_str:
             langs = [l.strip().title() for l in re.split(r'\s*[|/&,-]\s*', lang_str) if l.strip()]
-            
+
         return {
-            'anime_name': match.group('anime').strip(), 'season': int(match.group('season')),
-            'episode': int(match.group('episode')), 'episode_number': f"S{match.group('season')}E{match.group('episode')}",
-            'languages': langs, 'language_tag': lang_str.strip() if lang_str else 'original',
+            'media_type': media_type,
+            'title': title,
+            'year': int(year_str) if year_str else None,
+            'season': int(season_str) if season_str else None,
+            'episode': int(episode_str) if episode_str else None,
+            'episode_number': f"S{season_str}E{episode_str}" if season_str else None,
+            'languages': langs,
+            'language_tag': lang_str.strip() if lang_str else 'original',
             'quality': (match.group('quality') or 'unknown').upper()
         }
 
@@ -117,9 +163,6 @@ class AnimeVideoUploader:
                 form_data = aiohttp.FormData()
                 form_data.add_field('email', self.mixdrop_email)
                 form_data.add_field('key', self.mixdrop_key)
-                if config.MIXDROP_IMAGE_FOLDER_ID and file_path.endswith(('.jpg', '.png')):
-                    form_data.add_field('folder', config.MIXDROP_IMAGE_FOLDER_ID)
-                    
                 with open(file_path, 'rb') as f:
                     form_data.add_field('file', f, filename=file_name)
                 async with aiohttp.ClientSession() as session:
@@ -139,9 +182,6 @@ class AnimeVideoUploader:
             file_name = os.path.basename(file_path)
             try:
                 params = {'login': self.streamtape_login, 'key': self.streamtape_key}
-                if config.STREAMTAPE_IMAGE_FOLDER_ID and file_path.endswith(('.jpg', '.png')):
-                    params['folder_id'] = config.STREAMTAPE_IMAGE_FOLDER_ID
-
                 async with aiohttp.ClientSession() as session:
                     async with session.get(config.STREAMTAPE_API_URL, params=params) as resp:
                         result = await resp.json()
@@ -168,7 +208,9 @@ class AnimeVideoUploader:
                 'file_path': metadata.file_path, 
                 'file_name': metadata.file_name, 
                 'file_size': metadata.file_size,         
-                'title': metadata.anime_name, 
+                'title': metadata.title,
+                'content_type': 'anime' if metadata.media_type == 'TV Series' else 'movie',
+                'media_type': metadata.media_type,
                 'season': metadata.season, 
                 'episode': metadata.episode,
                 'episode_number': metadata.episode_number, 
@@ -180,8 +222,14 @@ class AnimeVideoUploader:
                 'doodstream_url': metadata.doodstream_url,
                 'mixdrop_url': metadata.mixdrop_url, 
                 'streamtape_url': metadata.streamtape_url,
-                # TMDB Fields
                 'tmdb_id': metadata.tmdb_id,
+                'release_year': metadata.release_year,
+                'total_seasons': metadata.total_seasons,
+                'total_episodes': metadata.total_episodes,
+                'tmdb_status': metadata.tmdb_status,
+                'original_language': metadata.original_language,
+                'networks': metadata.networks,
+                'creators': metadata.creators,
                 'overview': metadata.overview,
                 'genres': metadata.genres,
                 'vote_average': metadata.vote_average,
@@ -194,8 +242,11 @@ class AnimeVideoUploader:
             return None
 
     async def upload_single_video(self, original_file_path: str):
-        if not os.path.exists(original_file_path): return
+        if not os.path.exists(original_file_path):
+            tqdm.write(f"⚠️ File not found, skipping: {original_file_path}")
+            return
 
+        # 1. Integrity Check
         if config.ENABLE_INTEGRITY_CHECK and not check_file_integrity(original_file_path):
             tqdm.write(f"❌ Integrity check failed: {original_file_path}")
             safe_archive_files([original_file_path], "failed")
@@ -212,6 +263,7 @@ class AnimeVideoUploader:
         upload_path = original_file_path
         upload_file_name = file_name
 
+        # 2. Prepare & Package (if subtitles/NFO exist)
         if config.ENABLE_SUBTITLE_NFO_SUPPORT:
             path = Path(original_file_path)
             has_related = any((path.parent / f"{path.stem}{ext}").exists() for ext in config.SUBTITLE_EXTENSIONS | config.NFO_EXTENSIONS)
@@ -221,16 +273,26 @@ class AnimeVideoUploader:
                 upload_file_name = os.path.basename(upload_path)
 
         file_size = os.path.getsize(upload_path)
+        
+        # ✅ 3. Create Metadata Object (এই লাইনটি missing ছিল বলে এরর হচ্ছিল)
         metadata = VideoMetadata(
-            file_path=original_file_path, file_name=upload_file_name, file_size=file_size,
-            anime_name=parsed['anime_name'], season=parsed['season'], episode=parsed['episode'],
-            episode_number=parsed['episode_number'], languages=parsed['languages'],
-            language_tag=parsed['language_tag'], quality=parsed['quality'],
+            file_path=original_file_path, 
+            file_name=upload_file_name, 
+            file_size=file_size,
+            title=parsed['title'],
+            media_type=parsed['media_type'],
+            season=parsed['season'], 
+            episode=parsed['episode'],
+            episode_number=parsed['episode_number'], 
+            languages=parsed['languages'],
+            language_tag=parsed['language_tag'], 
+            quality=parsed['quality'],
             upload_date=datetime.now().isoformat()
         )
 
         tqdm.write(f"\n📤 Uploading: {upload_file_name} ({file_size / (1024*1024):.2f} MB)")
 
+        # 4. Concurrent Video Uploads
         tasks = []
         if config.ENABLE_DOODSTREAM: tasks.append(self.upload_to_doodstream_ftp(upload_path))
         if config.ENABLE_STREAMTAPE: tasks.append(self.upload_to_streamtape(upload_path))
@@ -245,8 +307,10 @@ class AnimeVideoUploader:
         uploaded_count = sum(1 for url in [metadata.doodstream_url, metadata.mixdrop_url, metadata.streamtape_url] if url)
         metadata.status = "completed" if uploaded_count >= 1 else "failed"
 
+        # 5. Safe Archive
         safe_archive_files(files_to_archive, metadata.status)
 
+        # 6. Cleanup Temp ZIP if created
         if upload_path != original_file_path and os.path.exists(upload_path):
             try:
                 os.remove(upload_path)
@@ -255,21 +319,35 @@ class AnimeVideoUploader:
             except Exception as e:
                 tqdm.write(f"⚠️ Temp cleanup failed: {e}")
 
-        # 🌟 TMDB Metadata Fetching (Runs once per season)
+        # 7. TMDB Metadata Fetching
         if config.ENABLE_TMDB_METADATA:
             try:
-                season_meta = await fetch_and_process_season_metadata(self, metadata.anime_name, metadata.season)
-                if season_meta:
-                    metadata.tmdb_id = season_meta.get('tmdb_id', 0)
-                    metadata.overview = season_meta.get('overview', '')
-                    metadata.genres = season_meta.get('genres', [])
-                    metadata.vote_average = season_meta.get('vote_average', 0.0)
-                    metadata.poster_url = season_meta.get('poster_url', '')
-                    metadata.banner_url = season_meta.get('banner_url', '')
-                    metadata.thumbnail_url = season_meta.get('thumbnail_url', '')
+                metadata_result = await fetch_and_process_metadata(
+                    self,
+                    metadata.title,
+                    metadata.media_type,
+                    metadata.season,
+                    parsed.get('year'),
+                )
+                if metadata_result:
+                    metadata.tmdb_id = metadata_result.get('tmdb_id', 0)
+                    metadata.release_year = metadata_result.get('release_year', 0)
+                    metadata.total_seasons = metadata_result.get('total_seasons', 0)
+                    metadata.total_episodes = metadata_result.get('total_episodes', 0)
+                    metadata.tmdb_status = metadata_result.get('tmdb_status', '')
+                    metadata.original_language = metadata_result.get('original_language', '')
+                    metadata.networks = metadata_result.get('networks', [])
+                    metadata.creators = metadata_result.get('creators', [])
+                    metadata.overview = metadata_result.get('overview', '')
+                    metadata.genres = metadata_result.get('genres', [])
+                    metadata.vote_average = metadata_result.get('vote_average', 0.0)
+                    metadata.poster_url = metadata_result.get('poster_url', '')
+                    metadata.banner_url = metadata_result.get('banner_url', '')
+                    metadata.thumbnail_url = metadata_result.get('thumbnail_url', '')
             except Exception as e:
                 tqdm.write(f"⚠️ Metadata fetch skipped/failed: {e}")
 
+        # 8. Save to DB
         db_result = self.save_to_supabase(metadata)
         if db_result:
             tqdm.write(f"✅ DB Updated: {metadata.status} | Links: {uploaded_count}/3")
@@ -290,8 +368,8 @@ async def main():
             while True:
                 tqdm.write(f"\n{'='*60}\n🔍 Scan Cycle #{scan_count}\n{'='*60}")
                 await scan_and_upload(uploader, video_folder)
-                tqdm.write(f"\n⏳ Waiting {getattr(config, 'SCAN_INTERVAL_SECONDS', 60)}s before next scan...")
-                await asyncio.sleep(getattr(config, 'SCAN_INTERVAL_SECONDS', 60))
+                tqdm.write(f"\n⏳ Waiting {config.SCAN_INTERVAL_SECONDS}s before next scan...")
+                await asyncio.sleep(config.SCAN_INTERVAL_SECONDS)
                 scan_count += 1
         else:
             await scan_and_upload(uploader, video_folder)

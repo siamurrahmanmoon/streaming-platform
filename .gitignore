@@ -30,6 +30,7 @@ videos/
 uploads/
 archive/
 quarantine/
+temp_tmdb_images/
 
 # Database / local runtime
 *.sqlite3
