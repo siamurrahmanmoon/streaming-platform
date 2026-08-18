@@ -4,7 +4,7 @@ import os
 # Core Settings
 # ═══════════════════════════════════════════════════════════
 ENABLE_CONTINUOUS_SCAN = True
-SCAN_INTERVAL_SECONDS = 60
+SCAN_INTERVAL_SECONDS = 30
 ENABLE_DATABASE_SAVE = True
 CHECK_DUPLICATE_IN_DB = True
 
@@ -12,8 +12,8 @@ CHECK_DUPLICATE_IN_DB = True
 # Platform Toggles (Video)
 # ═══════════════════════════════════════════════════════════
 ENABLE_DOODSTREAM = True      
-ENABLE_MIXDROP = False         
-ENABLE_STREAMTAPE = False      
+ENABLE_MIXDROP = True         
+ENABLE_STREAMTAPE = True      
 ENABLE_MIXDROP_REMOTE_FALLBACK = True
 
 # ═══════════════════════════════════════════════════════════

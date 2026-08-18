@@ -35,6 +35,11 @@ async def scan_and_upload(uploader, folder_path: str):
                             video_files.append(file_path)
                         else:
                             tqdm.write(f"⏭️  Already in database: {file}")
+                            try:
+                                os.remove(file_path)
+                                tqdm.write(f"🗑️  Deleted local duplicate: {file}")
+                            except OSError as e:
+                                tqdm.write(f"⚠️  Could not delete local duplicate {file}: {e}")
                     except Exception as e:
                         tqdm.write(f"⚠️ DB check failed for {file}, adding anyway: {e}")
                         video_files.append(file_path)

@@ -13,6 +13,9 @@ import aiohttp
 import aioftp
 from tqdm import tqdm
 from dotenv import load_dotenv
+from urllib.parse import quote
+
+load_dotenv()
 
 import config
 from utils.retry import retry_with_backoff
@@ -26,8 +29,6 @@ from utils.logger import get_logger
 from utils.alerts import alert_manager
 from utils.disk_monitor import disk_monitor
 from utils.rate_limiter import rate_limiter
-
-load_dotenv()
 
 log = get_logger("main")
 
@@ -179,14 +180,14 @@ class AnimeVideoUploader:
                 form_data = aiohttp.FormData()
                 form_data.add_field('email', self.mixdrop_email)
                 form_data.add_field('key', self.mixdrop_key)
-                with open(file_path, 'rb') as f:
-                    form_data.add_field('file', f, filename=file_name)
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(self.mixdrop_api_url, data=form_data, timeout=aiohttp.ClientTimeout(total=config.TIMEOUT_PER_FILE)) as resp:
-                        result = await resp.json()
-                        if result.get('success'):
-                            return result['result'].get('url') or f"https://mixdrop.ag/f/{result['result'].get('fileref', '')}"
-                        raise Exception(result.get('message', 'Unknown API Error'))
+                    with open(file_path, 'rb') as f:
+                        form_data.add_field('file', f, filename=file_name)
+                        async with session.post(self.mixdrop_api_url, data=form_data, timeout=aiohttp.ClientTimeout(total=config.TIMEOUT_PER_FILE)) as resp:
+                            result = await resp.json()
+                            if result.get('success'):
+                                return result['result'].get('url') or f"https://mixdrop.ag/f/{result['result'].get('fileref', '')}"
+                            raise Exception(result.get('message', 'Unknown API Error'))
             except Exception as e:
                 error_str = str(e)
                 if "429" in error_str or "Too Many Requests" in error_str:
@@ -212,9 +213,29 @@ class AnimeVideoUploader:
                         form_data.add_field('file1', f, filename=file_name)
                         async with session.post(upload_url, data=form_data, timeout=aiohttp.ClientTimeout(total=config.TIMEOUT_PER_FILE)) as resp:
                             text = await resp.text()
-                            match = re.search(r'(https://streamtape\.com/v/[a-zA-Z0-9]+/[^\s"<]+)', text)
-                            if match: return match.group(0)
-                            raise Exception("URL parsing failed")
+                            try:
+                                upload_result = json.loads(text)
+                            except json.JSONDecodeError:
+                                upload_result = {}
+
+                            if upload_result.get('status') not in (None, 200):
+                                raise Exception(upload_result.get('msg', 'Upload failed'))
+
+                            result = upload_result.get('result', {})
+                            if isinstance(result, dict):
+                                public_url = result.get('link') or result.get('video_link')
+                                if public_url:
+                                    return public_url
+
+                                file_id = result.get('id') or result.get('file') or result.get('linkid')
+                                if file_id:
+                                    return f"https://streamtape.com/v/{file_id}/{quote(file_name)}"
+
+                            match = re.search(r'(https://(?:streamtape\.com|tapecontent\.net)/[^\s"<>]+)', text)
+                            if match:
+                                return match.group(1)
+
+                            raise Exception("Upload completed but no StreamTape file link was returned")
             except Exception as e:
                 error_str = str(e)
                 if "429" in error_str or "Too Many Requests" in error_str:
@@ -307,12 +328,15 @@ class AnimeVideoUploader:
 
                 if not metadata_obj:
                     tqdm.write("❌ No metadata found! Moving to unmatched folder...")
+                    await alert_manager.notify_unmatched_video(
+                        file_name, parsed['title'], parsed.get('year')
+                    )
                     await self._move_to_unmatched(original_file_path, file_name)
                     return
 
                 tqdm.write("✅ Metadata verified! Proceeding with upload...")
             except Exception as e:
-                tqdm.write(f"⚠️ Metadata fetch failed: {e}")
+                log.error(f"⚠️ Metadata fetch failed: {e}")
                 # Metadata errors should not prevent the video upload.
 
         files_to_archive = [original_file_path]
@@ -395,9 +419,16 @@ class AnimeVideoUploader:
 
         # 8. Save to DB
         db_result = self.save_to_supabase(metadata)
-        if db_result:
+        if db_result and metadata.status == "completed":
             tqdm.write(f"✅ DB Updated: {metadata.status} | Links: {uploaded_count}/3")
-        else:
+            await alert_manager.notify_video_upload_success(metadata)
+        elif metadata.status == "failed":
+            tqdm.write("❌ Upload Failed!")
+            await alert_manager.notify_critical(
+                "Upload Failed",
+                f"File: {file_name}\nNo platform upload succeeded."
+            )
+        elif not db_result:
             tqdm.write(f"⚠️ DB Save failed!")
 
     async def _move_to_unmatched(self, file_path: str, file_name: str):

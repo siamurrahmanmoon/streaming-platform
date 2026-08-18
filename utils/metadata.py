@@ -190,6 +190,12 @@ async def fetch_and_process_metadata(uploader, title: str, media_type: str, seas
             # 3. Upload TMDB or direct OMDb images.
             poster_path = metadata.get('poster_path') or metadata.get('poster_url')
             if poster_path:
+                poster_fallback_url = (
+                    poster_path
+                    if poster_path.startswith('http')
+                    else f"{tmdb.image_base_url}{poster_path}"
+                )
+                image_urls['poster_url'] = poster_fallback_url
                 if poster_path.startswith('http'):
                     img_bytes = await _fetch_image_from_url(poster_path)
                 else:
