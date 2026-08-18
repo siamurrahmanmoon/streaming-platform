@@ -40,27 +40,22 @@ class VideoMetadata:
 
 class AnimeVideoUploader:
     def __init__(self):
-        # Print config on startup
         config.print_config()
 
-        # Supabase
         supabase_url = os.getenv('SUPABASE_URL')
         supabase_key = os.getenv('SUPABASE_KEY')
         if not supabase_url or not supabase_key:
             raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env")
         self.supabase = create_client(supabase_url, supabase_key)
 
-        # DoodStream FTP
         self.dood_ftp_server = os.getenv('DOODSTREAM_FTP_SERVER', config.DOODSTREAM_FTP_SERVER)
         self.dood_username = os.getenv('DOODSTREAM_USERNAME')
         self.dood_password = os.getenv('DOODSTREAM_PASSWORD')
 
-        # MixDrop API
         self.mixdrop_api_url = os.getenv('MIXDROP_API_URL', config.MIXDROP_API_URL)
         self.mixdrop_email = os.getenv('MIXDROP_EMAIL')
         self.mixdrop_key = os.getenv('MIXDROP_KEY')
 
-        # StreamTape API
         self.streamtape_login = os.getenv('STREAMTAPE_LOGIN')
         self.streamtape_key = os.getenv('STREAMTAPE_PASSWORD')
 
@@ -307,7 +302,6 @@ class AnimeVideoUploader:
         tqdm.write(f"   Languages: {', '.join(metadata.languages)} | Size: {file_size / (1024*1024):.2f} MB")
         tqdm.write(f"{'='*70}")
 
-        # ─── PHASE 1: Dynamic Concurrent Uploads based on config ──────────
         tasks = []
         if config.ENABLE_DOODSTREAM:
             tasks.append(asyncio.create_task(self.upload_to_doodstream_ftp(file_path)))
@@ -322,7 +316,6 @@ class AnimeVideoUploader:
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Map results safely
         idx = 0
         if config.ENABLE_DOODSTREAM:
             res = results[idx]
@@ -337,7 +330,6 @@ class AnimeVideoUploader:
             metadata.mixdrop_url = str(res) if not isinstance(res, Exception) and res else ""
             idx += 1
 
-        # ─── PHASE 2: MixDrop Fallback (Chain Upload) ─────────────────────
         if config.ENABLE_MIXDROP_REMOTE_FALLBACK and not metadata.mixdrop_url and metadata.streamtape_url:
             tqdm.write(f"\n🔄 MixDrop direct failed/disabled. Trying Remote Upload from StreamTape...")
             mixdrop_remote_url = await self.upload_to_mixdrop_remote(metadata.streamtape_url, file_name)
@@ -345,7 +337,6 @@ class AnimeVideoUploader:
                 metadata.mixdrop_url = mixdrop_remote_url
                 tqdm.write(f"✅ MixDrop Remote Upload URL: {mixdrop_remote_url}")
 
-        # ─── PHASE 3: Update Status ───────────────────────────────────────
         uploaded_count = sum([1 for url in [metadata.doodstream_url, metadata.mixdrop_url, metadata.streamtape_url] if url])
         
         if uploaded_count == 3:
@@ -358,7 +349,6 @@ class AnimeVideoUploader:
             metadata.status = "failed"
             tqdm.write(f"\n❌ All uploads failed!")
 
-        # ─── PHASE 4: Save to Supabase & AUTO DELETE ──────────────────────
         db_result = self.save_to_supabase(metadata)
         
         if config.ENABLE_DATABASE_SAVE:
@@ -367,7 +357,6 @@ class AnimeVideoUploader:
             else:
                 tqdm.write(f"⚠️ Database save failed!")
 
-        # Safe Auto Delete Logic
         if config.AUTO_DELETE_AFTER_UPLOAD and db_result and metadata.status == "completed":
             try:
                 os.remove(file_path)
@@ -381,7 +370,6 @@ class AnimeVideoUploader:
         elif not db_result and config.ENABLE_DATABASE_SAVE:
             tqdm.write(f"⚠️ Upload succeeded, but DB save failed. KEEPING local file as backup.")
 
-        # Print URLs
         if config.PRINT_URLS_AFTER_UPLOAD:
             if metadata.doodstream_url: tqdm.write(f"   🎬 DoodStream: {metadata.doodstream_url}")
             if metadata.streamtape_url: tqdm.write(f"   🎬 StreamTape: {metadata.streamtape_url}")
@@ -418,7 +406,7 @@ class AnimeVideoUploader:
                         video_files.append(file_path)
 
         if not video_files:
-            tqdm.write("✅ No new videos found!")
+            tqdm.write("✅ No new videos found in this scan!")
             return
 
         tqdm.write(f"\n📁 Found {len(video_files)} new videos to upload\n")
@@ -428,7 +416,7 @@ class AnimeVideoUploader:
             await self.upload_single_video(file_path)
 
         tqdm.write(f"\n{'='*70}")
-        tqdm.write(f"🎉 All uploads completed!")
+        tqdm.write(f"🎉 Current scan & upload batch completed!")
         tqdm.write(f"{'='*70}")
 
 
@@ -436,7 +424,27 @@ async def main():
     try:
         uploader = AnimeVideoUploader()
         video_folder = os.getenv('VIDEO_FOLDER', './videos')
-        await uploader.scan_and_upload(video_folder)
+        
+        if config.ENABLE_CONTINUOUS_SCAN:
+            tqdm.write("🔄 Continuous scan mode ENABLED. Press Ctrl+C to stop.")
+            scan_count = 1
+            while True:
+                tqdm.write(f"\n{'='*70}")
+                tqdm.write(f"🔍 Starting Scan Cycle #{scan_count}")
+                tqdm.write(f"{'='*70}")
+                
+                await uploader.scan_and_upload(video_folder)
+                
+                tqdm.write(f"\n⏳ Waiting {config.SCAN_INTERVAL_SECONDS} seconds before next scan...")
+                await asyncio.sleep(config.SCAN_INTERVAL_SECONDS)
+                scan_count += 1
+        else:
+            tqdm.write("📌 Single scan mode. Running once and exiting.")
+            await uploader.scan_and_upload(video_folder)
+            tqdm.write("✅ Script finished successfully.")
+            
+    except KeyboardInterrupt:
+        tqdm.write("\n\n🛑 Continuous scan stopped by user (Ctrl+C). Exiting gracefully...")
     except Exception as e:
         tqdm.write(f"❌ Fatal error: {e}")
         import traceback
