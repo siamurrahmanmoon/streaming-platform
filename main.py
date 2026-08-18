@@ -22,8 +22,14 @@ from utils.file_manager import prepare_and_package, safe_archive_files
 from utils.cleanup import cleanup_orphaned_files
 from utils.scanner import scan_and_upload
 from utils.metadata import fetch_and_process_metadata
+from utils.logger import get_logger
+from utils.alerts import alert_manager
+from utils.disk_monitor import disk_monitor
+from utils.rate_limiter import rate_limiter
 
 load_dotenv()
+
+log = get_logger("main")
 
 @dataclass
 class VideoMetadata:
@@ -61,6 +67,12 @@ class VideoMetadata:
 class AnimeVideoUploader:
     def __init__(self):
         config.print_config()
+        log.info("🚀 Starting Anime Video Uploader...")
+
+        if config.CHECK_DISK_BEFORE_UPLOAD:
+            video_folder = os.getenv('VIDEO_FOLDER', './videos')
+            asyncio.create_task(disk_monitor.check_and_alert(video_folder))
+
         supabase_url = os.getenv('SUPABASE_URL')
         
         # Standard client for Database operations
@@ -152,7 +164,10 @@ class AnimeVideoUploader:
                                     pbar.update(len(chunk))
                 return f"https://doodstream.com/d/{file_name}"
             except Exception as e:
-                tqdm.write(f"❌ DoodStream Error: {e}")
+                error_str = str(e)
+                if "429" in error_str or "Too Many Requests" in error_str:
+                    await rate_limiter.check_rate_limit("DoodStream", 429)
+                log.error(f"❌ DoodStream Error: {e}")
                 raise
 
     @retry_with_backoff()
@@ -173,7 +188,10 @@ class AnimeVideoUploader:
                             return result['result'].get('url') or f"https://mixdrop.ag/f/{result['result'].get('fileref', '')}"
                         raise Exception(result.get('message', 'Unknown API Error'))
             except Exception as e:
-                tqdm.write(f"❌ MixDrop Error: {e}")
+                error_str = str(e)
+                if "429" in error_str or "Too Many Requests" in error_str:
+                    await rate_limiter.check_rate_limit("MixDrop", 429)
+                log.error(f"❌ MixDrop Error: {e}")
                 raise
 
     @retry_with_backoff()
@@ -198,7 +216,10 @@ class AnimeVideoUploader:
                             if match: return match.group(0)
                             raise Exception("URL parsing failed")
             except Exception as e:
-                tqdm.write(f"❌ StreamTape Error: {e}")
+                error_str = str(e)
+                if "429" in error_str or "Too Many Requests" in error_str:
+                    await rate_limiter.check_rate_limit("StreamTape", 429)
+                log.error(f"❌ StreamTape Error: {e}")
                 raise
 
     def save_to_supabase(self, metadata: VideoMetadata):
@@ -243,6 +264,17 @@ class AnimeVideoUploader:
             return None
 
     async def upload_single_video(self, original_file_path: str):
+        if config.CHECK_DISK_BEFORE_UPLOAD:
+            video_folder = os.getenv('VIDEO_FOLDER', './videos')
+            is_ok = await disk_monitor.check_and_alert(video_folder)
+            if not is_ok:
+                log.error("🚨 Disk space critical! Skipping upload.")
+                await alert_manager.notify_critical(
+                    "Upload Skipped",
+                    f"Disk space critical. File skipped: {original_file_path}"
+                )
+                return
+
         if not os.path.exists(original_file_path):
             tqdm.write(f"⚠️ File not found, skipping: {original_file_path}")
             return

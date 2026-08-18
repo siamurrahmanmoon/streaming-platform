@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  anime-uploader:
+    build: .
+    container_name: anime-uploader
+    restart: unless-stopped # Auto-restart on crash
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./videos:/app/videos
+      - ./unmatched_videos:/app/unmatched_videos
+      - ./archive:/app/archive
+      - ./quarantine:/app/quarantine
+    environment:
+      - VIDEO_FOLDER=/app/videos
+      - UNMATCHED_VIDEOS_FOLDER=/app/unmatched_videos
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

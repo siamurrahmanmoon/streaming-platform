@@ -43,6 +43,13 @@ ORPHAN_DAYS_LIMIT = 7
 QUARANTINE_FOLDER = "./quarantine"
 
 # ═══════════════════════════════════════════════════════════
+# RESOURCE MANAGEMENT
+# ═══════════════════════════════════════════════════════════
+DISK_WARNING_THRESHOLD = 90.0      # Warn at 90% usage
+DISK_CRITICAL_THRESHOLD = 95.0     # Stop at 95% usage
+CHECK_DISK_BEFORE_UPLOAD = True    # Check disk space before each upload
+
+# ═══════════════════════════════════════════════════════════
 # Performance & API
 # ═══════════════════════════════════════════════════════════
 MAX_CONCURRENT_UPLOADS = 3
