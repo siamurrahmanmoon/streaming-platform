@@ -1,0 +1,58 @@
+# Version Control
+.git
+.gitignore
+
+# Python Virtual Environment
+venv/
+.venv/
+env/
+
+# Environment Variables (Security: Never put .env inside Docker image)
+.env
+.env.*
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs (Generated at runtime, no need to copy to image)
+logs/
+*.log
+
+# Local Data & Generated Folders (These are mounted via docker-compose volumes)
+videos/
+uploads/
+archive/
+quarantine/
+temp_tmdb_images/
+unmatched_videos/
+
+# Database / local runtime
+*.sqlite3
+*.db
+
+# Testing & Coverage
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker files themselves (Optional, but good practice)
+Dockerfile
+docker-compose.yml
+.dockerignore
