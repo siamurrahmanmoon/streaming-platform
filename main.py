@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from supabase import create_client, Client
 import aiohttp
 import aioftp
@@ -19,7 +19,8 @@ from utils.integrity import check_file_integrity
 from utils.concurrency import limiter
 from utils.file_manager import prepare_and_package, safe_archive_files
 from utils.cleanup import cleanup_orphaned_files
-from utils.scanner import scan_and_upload  # ✅ নতুন স্ক্যানার মডিউল ইমপোর্ট করা হয়েছে
+from utils.scanner import scan_and_upload
+from utils.metadata import fetch_and_process_season_metadata
 
 load_dotenv()
 
@@ -40,11 +41,26 @@ class VideoMetadata:
     mixdrop_url: str = ""
     streamtape_url: str = ""
     status: str = "pending"
+    # TMDB Metadata Fields
+    tmdb_id: int = 0
+    overview: str = ""
+    genres: List[str] = field(default_factory=list)
+    vote_average: float = 0.0
+    poster_url: str = ""
+    banner_url: str = ""
+    thumbnail_url: str = ""
 
 class AnimeVideoUploader:
     def __init__(self):
         config.print_config()
-        self.supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_KEY')
+        self.supabase = create_client(supabase_url, supabase_key)
+
+        storage_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+        if not storage_key:
+            tqdm.write("⚠️ SUPABASE_SERVICE_ROLE_KEY missing; Supabase Storage uploads may be blocked by RLS.")
+        self.supabase_storage = create_client(supabase_url, storage_key) if storage_key else self.supabase
         self.dood_ftp_server = os.getenv('DOODSTREAM_FTP_SERVER', config.DOODSTREAM_FTP_SERVER)
         self.dood_username = os.getenv('DOODSTREAM_USERNAME')
         self.dood_password = os.getenv('DOODSTREAM_PASSWORD')
@@ -101,6 +117,9 @@ class AnimeVideoUploader:
                 form_data = aiohttp.FormData()
                 form_data.add_field('email', self.mixdrop_email)
                 form_data.add_field('key', self.mixdrop_key)
+                if config.MIXDROP_IMAGE_FOLDER_ID and file_path.endswith(('.jpg', '.png')):
+                    form_data.add_field('folder', config.MIXDROP_IMAGE_FOLDER_ID)
+                    
                 with open(file_path, 'rb') as f:
                     form_data.add_field('file', f, filename=file_name)
                 async with aiohttp.ClientSession() as session:
@@ -119,8 +138,12 @@ class AnimeVideoUploader:
         async with limiter:
             file_name = os.path.basename(file_path)
             try:
+                params = {'login': self.streamtape_login, 'key': self.streamtape_key}
+                if config.STREAMTAPE_IMAGE_FOLDER_ID and file_path.endswith(('.jpg', '.png')):
+                    params['folder_id'] = config.STREAMTAPE_IMAGE_FOLDER_ID
+
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(config.STREAMTAPE_API_URL, params={'login': self.streamtape_login, 'key': self.streamtape_key}) as resp:
+                    async with session.get(config.STREAMTAPE_API_URL, params=params) as resp:
                         result = await resp.json()
                         if result.get('status') != 200: raise Exception(result.get('msg', 'Unknown'))
                         upload_url = result['result']['url']
@@ -156,7 +179,15 @@ class AnimeVideoUploader:
                 'upload_date': metadata.upload_date,
                 'doodstream_url': metadata.doodstream_url,
                 'mixdrop_url': metadata.mixdrop_url, 
-                'streamtape_url': metadata.streamtape_url
+                'streamtape_url': metadata.streamtape_url,
+                # TMDB Fields
+                'tmdb_id': metadata.tmdb_id,
+                'overview': metadata.overview,
+                'genres': metadata.genres,
+                'vote_average': metadata.vote_average,
+                'poster_url': metadata.poster_url,
+                'banner_url': metadata.banner_url,
+                'thumbnail_url': metadata.thumbnail_url
             }, on_conflict='file_path').execute().data
         except Exception as e:
             tqdm.write(f"❌ Supabase Error: {e}")
@@ -165,7 +196,6 @@ class AnimeVideoUploader:
     async def upload_single_video(self, original_file_path: str):
         if not os.path.exists(original_file_path): return
 
-        # 1. Integrity Check
         if config.ENABLE_INTEGRITY_CHECK and not check_file_integrity(original_file_path):
             tqdm.write(f"❌ Integrity check failed: {original_file_path}")
             safe_archive_files([original_file_path], "failed")
@@ -178,7 +208,6 @@ class AnimeVideoUploader:
             safe_archive_files([original_file_path], "failed")
             return
 
-        # 2. Prepare & Package (if subtitles/NFO exist)
         files_to_archive = [original_file_path]
         upload_path = original_file_path
         upload_file_name = file_name
@@ -202,7 +231,6 @@ class AnimeVideoUploader:
 
         tqdm.write(f"\n📤 Uploading: {upload_file_name} ({file_size / (1024*1024):.2f} MB)")
 
-        # 3. Concurrent Uploads
         tasks = []
         if config.ENABLE_DOODSTREAM: tasks.append(self.upload_to_doodstream_ftp(upload_path))
         if config.ENABLE_STREAMTAPE: tasks.append(self.upload_to_streamtape(upload_path))
@@ -214,14 +242,11 @@ class AnimeVideoUploader:
         metadata.streamtape_url = str(results[1]) if len(results)>1 and not isinstance(results[1], Exception) and results[1] else ""
         metadata.mixdrop_url = str(results[2]) if len(results)>2 and not isinstance(results[2], Exception) and results[2] else ""
 
-        # 4. Determine Status
         uploaded_count = sum(1 for url in [metadata.doodstream_url, metadata.mixdrop_url, metadata.streamtape_url] if url)
         metadata.status = "completed" if uploaded_count >= 1 else "failed"
 
-        # 5. Safe Archive
         safe_archive_files(files_to_archive, metadata.status)
 
-        # 6. Cleanup Temp ZIP if created
         if upload_path != original_file_path and os.path.exists(upload_path):
             try:
                 os.remove(upload_path)
@@ -230,7 +255,21 @@ class AnimeVideoUploader:
             except Exception as e:
                 tqdm.write(f"⚠️ Temp cleanup failed: {e}")
 
-        # 7. Save to DB
+        # 🌟 TMDB Metadata Fetching (Runs once per season)
+        if config.ENABLE_TMDB_METADATA:
+            try:
+                season_meta = await fetch_and_process_season_metadata(self, metadata.anime_name, metadata.season)
+                if season_meta:
+                    metadata.tmdb_id = season_meta.get('tmdb_id', 0)
+                    metadata.overview = season_meta.get('overview', '')
+                    metadata.genres = season_meta.get('genres', [])
+                    metadata.vote_average = season_meta.get('vote_average', 0.0)
+                    metadata.poster_url = season_meta.get('poster_url', '')
+                    metadata.banner_url = season_meta.get('banner_url', '')
+                    metadata.thumbnail_url = season_meta.get('thumbnail_url', '')
+            except Exception as e:
+                tqdm.write(f"⚠️ Metadata fetch skipped/failed: {e}")
+
         db_result = self.save_to_supabase(metadata)
         if db_result:
             tqdm.write(f"✅ DB Updated: {metadata.status} | Links: {uploaded_count}/3")
@@ -242,7 +281,6 @@ async def main():
         uploader = AnimeVideoUploader()
         video_folder = os.getenv('VIDEO_FOLDER', './videos')
         
-        # Run Orphan Cleanup at startup
         if config.ENABLE_ORPHAN_CLEANUP:
             cleanup_orphaned_files(video_folder)
 
@@ -251,15 +289,11 @@ async def main():
             scan_count = 1
             while True:
                 tqdm.write(f"\n{'='*60}\n🔍 Scan Cycle #{scan_count}\n{'='*60}")
-                
-                # ✅ নতুন স্ক্যানার ফাংশন কল করা হচ্ছে
                 await scan_and_upload(uploader, video_folder)
-                
                 tqdm.write(f"\n⏳ Waiting {getattr(config, 'SCAN_INTERVAL_SECONDS', 60)}s before next scan...")
                 await asyncio.sleep(getattr(config, 'SCAN_INTERVAL_SECONDS', 60))
                 scan_count += 1
         else:
-            # ✅ নতুন স্ক্যানার ফাংশন কল করা হচ্ছে
             await scan_and_upload(uploader, video_folder)
             tqdm.write("✅ Single scan completed.")
             

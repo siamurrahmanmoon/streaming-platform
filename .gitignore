@@ -28,6 +28,8 @@ Thumbs.db
 # Local uploads / generated data
 videos/
 uploads/
+archive/
+quarantine/
 
 # Database / local runtime
 *.sqlite3
