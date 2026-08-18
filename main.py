@@ -2,6 +2,7 @@ import os
 import re
 import json
 import sys
+import shutil
 import asyncio
 from datetime import datetime
 from pathlib import Path
@@ -107,12 +108,12 @@ class AnimeVideoUploader:
         title = match.group('title').strip()
         year_str = match.groupdict().get('year')
 
-        # If the year is not parenthesized, extract it from the end of the title.
+        # Extract an unparenthesized year from anywhere in the title.
         if not year_str:
-            year_match = re.search(r'\b(\d{4})\s*$', title)
+            year_match = re.search(r'\b(19|20)\d{2}\b', title)
             if year_match:
-                year_str = year_match.group(1)
-                title = title[:year_match.start()].strip()
+                year_str = year_match.group(0)
+                title = re.sub(r'\s*\b' + year_str + r'\b\s*', ' ', title).strip()
 
         lang_str = match.group('language')
         season_str = match.groupdict().get('season')
@@ -259,11 +260,34 @@ class AnimeVideoUploader:
             safe_archive_files([original_file_path], "failed")
             return
 
+        # 2. Fetch metadata before uploading the video.
+        metadata_obj = None
+        if config.ENABLE_TMDB_METADATA:
+            try:
+                tqdm.write("\n🔍 Checking metadata BEFORE upload...")
+                metadata_obj = await fetch_and_process_metadata(
+                    self,
+                    parsed['title'],
+                    parsed['media_type'],
+                    parsed.get('season'),
+                    parsed.get('year')
+                )
+
+                if not metadata_obj:
+                    tqdm.write("❌ No metadata found! Moving to unmatched folder...")
+                    await self._move_to_unmatched(original_file_path, file_name)
+                    return
+
+                tqdm.write("✅ Metadata verified! Proceeding with upload...")
+            except Exception as e:
+                tqdm.write(f"⚠️ Metadata fetch failed: {e}")
+                # Metadata errors should not prevent the video upload.
+
         files_to_archive = [original_file_path]
         upload_path = original_file_path
         upload_file_name = file_name
 
-        # 2. Prepare & Package (if subtitles/NFO exist)
+        # 3. Prepare & Package (if subtitles/NFO exist)
         if config.ENABLE_SUBTITLE_NFO_SUPPORT:
             path = Path(original_file_path)
             has_related = any((path.parent / f"{path.stem}{ext}").exists() for ext in config.SUBTITLE_EXTENSIONS | config.NFO_EXTENSIONS)
@@ -274,7 +298,7 @@ class AnimeVideoUploader:
 
         file_size = os.path.getsize(upload_path)
         
-        # ✅ 3. Create Metadata Object (এই লাইনটি missing ছিল বলে এরর হচ্ছিল)
+        # 4. Create Metadata Object
         metadata = VideoMetadata(
             file_path=original_file_path, 
             file_name=upload_file_name, 
@@ -290,27 +314,45 @@ class AnimeVideoUploader:
             upload_date=datetime.now().isoformat()
         )
 
+        if metadata_obj:
+            metadata.tmdb_id = metadata_obj.get('tmdb_id', 0)
+            metadata.release_year = metadata_obj.get('release_year', 0)
+            metadata.total_seasons = metadata_obj.get('total_seasons', 0)
+            metadata.total_episodes = metadata_obj.get('total_episodes', 0)
+            metadata.tmdb_status = metadata_obj.get('tmdb_status', '')
+            metadata.original_language = metadata_obj.get('original_language', '')
+            metadata.networks = metadata_obj.get('networks', [])
+            metadata.creators = metadata_obj.get('creators', [])
+            metadata.overview = metadata_obj.get('overview', '')
+            metadata.genres = metadata_obj.get('genres', [])
+            metadata.vote_average = metadata_obj.get('vote_average', 0.0)
+            metadata.poster_url = metadata_obj.get('poster_url', '')
+            metadata.banner_url = metadata_obj.get('banner_url', '')
+            metadata.thumbnail_url = metadata_obj.get('thumbnail_url', '')
+
         tqdm.write(f"\n📤 Uploading: {upload_file_name} ({file_size / (1024*1024):.2f} MB)")
 
-        # 4. Concurrent Video Uploads
-        tasks = []
-        if config.ENABLE_DOODSTREAM: tasks.append(self.upload_to_doodstream_ftp(upload_path))
-        if config.ENABLE_STREAMTAPE: tasks.append(self.upload_to_streamtape(upload_path))
-        if config.ENABLE_MIXDROP: tasks.append(self.upload_to_mixdrop(upload_path))
+        # 5. Concurrent Video Uploads
+        upload_tasks = {}
+        if config.ENABLE_DOODSTREAM:
+            upload_tasks['doodstream_url'] = self.upload_to_doodstream_ftp(upload_path)
+        if config.ENABLE_STREAMTAPE:
+            upload_tasks['streamtape_url'] = self.upload_to_streamtape(upload_path)
+        if config.ENABLE_MIXDROP:
+            upload_tasks['mixdrop_url'] = self.upload_to_mixdrop(upload_path)
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        metadata.doodstream_url = str(results[0]) if not isinstance(results[0], Exception) and results[0] else ""
-        metadata.streamtape_url = str(results[1]) if len(results)>1 and not isinstance(results[1], Exception) and results[1] else ""
-        metadata.mixdrop_url = str(results[2]) if len(results)>2 and not isinstance(results[2], Exception) and results[2] else ""
+        results = await asyncio.gather(*upload_tasks.values(), return_exceptions=True)
+        for field_name, result in zip(upload_tasks, results):
+            if not isinstance(result, Exception) and result:
+                setattr(metadata, field_name, str(result))
 
         uploaded_count = sum(1 for url in [metadata.doodstream_url, metadata.mixdrop_url, metadata.streamtape_url] if url)
         metadata.status = "completed" if uploaded_count >= 1 else "failed"
 
-        # 5. Safe Archive
+        # 6. Safe Archive
         safe_archive_files(files_to_archive, metadata.status)
 
-        # 6. Cleanup Temp ZIP if created
+        # 7. Cleanup Temp ZIP if created
         if upload_path != original_file_path and os.path.exists(upload_path):
             try:
                 os.remove(upload_path)
@@ -319,40 +361,32 @@ class AnimeVideoUploader:
             except Exception as e:
                 tqdm.write(f"⚠️ Temp cleanup failed: {e}")
 
-        # 7. TMDB Metadata Fetching
-        if config.ENABLE_TMDB_METADATA:
-            try:
-                metadata_result = await fetch_and_process_metadata(
-                    self,
-                    metadata.title,
-                    metadata.media_type,
-                    metadata.season,
-                    parsed.get('year'),
-                )
-                if metadata_result:
-                    metadata.tmdb_id = metadata_result.get('tmdb_id', 0)
-                    metadata.release_year = metadata_result.get('release_year', 0)
-                    metadata.total_seasons = metadata_result.get('total_seasons', 0)
-                    metadata.total_episodes = metadata_result.get('total_episodes', 0)
-                    metadata.tmdb_status = metadata_result.get('tmdb_status', '')
-                    metadata.original_language = metadata_result.get('original_language', '')
-                    metadata.networks = metadata_result.get('networks', [])
-                    metadata.creators = metadata_result.get('creators', [])
-                    metadata.overview = metadata_result.get('overview', '')
-                    metadata.genres = metadata_result.get('genres', [])
-                    metadata.vote_average = metadata_result.get('vote_average', 0.0)
-                    metadata.poster_url = metadata_result.get('poster_url', '')
-                    metadata.banner_url = metadata_result.get('banner_url', '')
-                    metadata.thumbnail_url = metadata_result.get('thumbnail_url', '')
-            except Exception as e:
-                tqdm.write(f"⚠️ Metadata fetch skipped/failed: {e}")
-
         # 8. Save to DB
         db_result = self.save_to_supabase(metadata)
         if db_result:
             tqdm.write(f"✅ DB Updated: {metadata.status} | Links: {uploaded_count}/3")
         else:
             tqdm.write(f"⚠️ DB Save failed!")
+
+    async def _move_to_unmatched(self, file_path: str, file_name: str):
+        """Move a video without metadata to the manual-review folder."""
+        try:
+            unmatched_folder = Path(config.UNMATCHED_VIDEOS_FOLDER)
+            unmatched_folder.mkdir(parents=True, exist_ok=True)
+
+            dest_path = unmatched_folder / file_name
+            counter = 1
+            while dest_path.exists():
+                stem = Path(file_name).stem
+                suffix = Path(file_name).suffix
+                dest_path = unmatched_folder / f"{stem}_{counter}{suffix}"
+                counter += 1
+
+            shutil.move(file_path, str(dest_path))
+            tqdm.write(f"📁 Moved to unmatched: {dest_path.name}")
+            tqdm.write("💡 Tip: Rename the file to match TMDB/OMDb naming convention")
+        except Exception as e:
+            tqdm.write(f"❌ Failed to move to unmatched folder: {e}")
 
 async def main():
     try:

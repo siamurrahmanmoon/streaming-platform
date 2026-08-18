@@ -31,6 +31,7 @@ uploads/
 archive/
 quarantine/
 temp_tmdb_images/
+unmatched_videos/
 
 # Database / local runtime
 *.sqlite3

@@ -22,6 +22,7 @@ ENABLE_MIXDROP_REMOTE_FALLBACK = True
 ENABLE_TMDB_METADATA = True
 ENABLE_IMAGE_STORAGE = True
 SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'posters')
+UNMATCHED_VIDEOS_FOLDER = os.getenv('UNMATCHED_VIDEOS_FOLDER', './unmatched_videos')
 
 # ═══════════════════════════════════════════════════════════
 # File Handling & Archive
