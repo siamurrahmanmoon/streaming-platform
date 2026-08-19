@@ -31,7 +31,10 @@ log = get_logger("processor")
 
 
 async def process_single_video(
-    original_file_path: str, supabase_client: Client, supabase_storage_client: Client
+    original_file_path: str,
+    supabase_client: Client,
+    supabase_storage_client: Client,
+    video_index: int = 0,
 ):
     if config.CHECK_DISK_BEFORE_UPLOAD:
         video_folder = os.getenv("VIDEO_FOLDER", "./videos")
@@ -110,7 +113,7 @@ async def process_single_video(
             if hasattr(metadata, key):
                 setattr(metadata, key, value)
 
-    task_index = 0
+    position_base = video_index * 3
     upload_tasks = {}
     loop = asyncio.get_event_loop()
     if config.ENABLE_DOODSTREAM:
@@ -119,7 +122,7 @@ async def process_single_video(
             upload_to_doodstream_api,
             upload_path,
             os.getenv("DOODSTREAM_API_KEY"),
-            task_index,
+            position_base,
         )
     if config.ENABLE_STREAMTAPE:
         upload_tasks["streamtape_url"] = loop.run_in_executor(
@@ -128,7 +131,7 @@ async def process_single_video(
             upload_path,
             os.getenv("STREAMTAPE_LOGIN"),
             os.getenv("STREAMTAPE_PASSWORD"),
-            task_index,
+            position_base + 1,
         )
     if config.ENABLE_MIXDROP:
         upload_tasks["mixdrop_url"] = loop.run_in_executor(
@@ -138,7 +141,7 @@ async def process_single_video(
             os.getenv("MIXDROP_EMAIL"),
             os.getenv("MIXDROP_KEY"),
             os.getenv("MIXDROP_API_URL", config.MIXDROP_API_URL),
-            task_index,
+            position_base + 2,
         )
 
     results = await asyncio.gather(*upload_tasks.values(), return_exceptions=True)

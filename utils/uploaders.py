@@ -74,13 +74,13 @@ def upload_to_doodstream_api(
             raise Exception(f"Failed to get upload server: {server_data.get('msg')}")
 
         upload_url = server_data["result"]
-        log.info(f"Uploading to DoodStream API: {file_name}")
         with open(file_path, "rb") as file_obj, tqdm(
             total=file_size,
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
-            desc=f"Dood {progress_id + 1}: {file_name[:35]}",
+            desc=f"Dood: {file_name[:35]}",
+            position=progress_id,
             ncols=100,
         ) as pbar:
             files = {
@@ -129,7 +129,8 @@ def upload_to_mixdrop(
             total=file_size,
             unit="B",
             unit_scale=True,
-            desc=f"Mix {progress_id + 1}: {file_name[:30]}",
+            desc=f"Mix: {file_name[:30]}",
+            position=progress_id,
             ncols=100,
         ) as pbar:
             files = {
@@ -177,7 +178,8 @@ def upload_to_streamtape(
             total=file_size,
             unit="B",
             unit_scale=True,
-            desc=f"ST {progress_id + 1}: {file_name[:30]}",
+            desc=f"ST: {file_name[:30]}",
+            position=progress_id,
             ncols=100,
         ) as pbar:
             files = {

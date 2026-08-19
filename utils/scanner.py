@@ -69,14 +69,17 @@ async def scan_and_upload(supabase_client, supabase_storage_client, folder_path:
     max_concurrent = max(1, config.MAX_CONCURRENT_UPLOADS)  # Ensure at least 1
     semaphore = asyncio.Semaphore(max_concurrent)
 
-    async def process_with_limit(file_path):
+    async def process_with_limit(video_index, file_path):
         async with semaphore:
             await process_single_video(
-                file_path, supabase_client, supabase_storage_client
+                file_path, supabase_client, supabase_storage_client, video_index
             )
 
     # 3. Execute Concurrently
-    tasks = [process_with_limit(file_path) for file_path in video_files]
+    tasks = [
+        process_with_limit(video_index, file_path)
+        for video_index, file_path in enumerate(video_files)
+    ]
     await asyncio.gather(*tasks, return_exceptions=True)
 
     tqdm.write(f"\n{'='*70}")
