@@ -18,28 +18,6 @@ log = get_logger("uploaders")
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-class UploadProgress(requests.adapters.HTTPAdapter):
-    """Simple progress tracking for requests."""
-
-    def __init__(self, total_size, pbar):
-        super().__init__()
-        self.total_size = total_size
-        self.pbar = pbar
-
-    def send(
-        self,
-        request,
-        stream=False,
-        timeout=None,
-        verify=True,
-        cert=None,
-        proxies=None,
-    ):
-        response = super().send(request, stream, timeout, verify, cert, proxies)
-        response._content_consumed = False
-        return response
-
-
 class ProgressFile:
     def __init__(self, file_obj, pbar):
         self.file_obj = file_obj

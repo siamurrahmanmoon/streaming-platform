@@ -227,7 +227,6 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ```env
 # Supabase Configuration
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 SUPABASE_STORAGE_BUCKET=posters
 
@@ -418,8 +417,6 @@ ORPHAN_DAYS_LIMIT = 7                  # Days before cleanup
 
 ### Disk Management
 ```python
-DISK_WARNING_THRESHOLD = 90.0          # Warn at 90% usage
-DISK_CRITICAL_THRESHOLD = 95.0         # Stop at 95% usage
 CHECK_DISK_BEFORE_UPLOAD = True        # Check disk space
 ```
 

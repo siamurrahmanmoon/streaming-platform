@@ -4,12 +4,10 @@ import asyncio
 from typing import Optional, Dict
 from tqdm import tqdm
 import sys
-from datetime import datetime
 from pathlib import Path
 from supabase import Client
 
 sys.path.append(str(Path(__file__).parent.parent))
-import config
 from utils.image_uploader import upload_image_to_supabase
 from utils.omdb_fetcher import OMDbMetadataFetcher
 

@@ -1,11 +1,7 @@
-import os
 from typing import Optional
 from tqdm import tqdm
-import sys
-from pathlib import Path
 from supabase import Client
 
-sys.path.append(str(Path(__file__).parent.parent))
 import config
 
 

@@ -1,13 +1,8 @@
 # utils/db_manager.py
 
-import sys
-from pathlib import Path
 from typing import Optional, Dict, List
 from supabase import Client
 from loguru import logger
-
-sys.path.append(str(Path(__file__).parent.parent))
-import config
 
 
 class DatabaseManager:

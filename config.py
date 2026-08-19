@@ -14,7 +14,6 @@ CHECK_DUPLICATE_IN_DB = True
 ENABLE_DOODSTREAM = True
 ENABLE_MIXDROP = True
 ENABLE_STREAMTAPE = True
-ENABLE_MIXDROP_REMOTE_FALLBACK = True
 
 # ═══════════════════════════════════════════════════════════
 # TMDB & Image Storage Settings (Optimized)
@@ -45,8 +44,6 @@ QUARANTINE_FOLDER = "./quarantine"
 # ═══════════════════════════════════════════════════════════
 # RESOURCE MANAGEMENT
 # ═══════════════════════════════════════════════════════════
-DISK_WARNING_THRESHOLD = 90.0  # Warn at 90% usage
-DISK_CRITICAL_THRESHOLD = 95.0  # Stop at 95% usage
 CHECK_DISK_BEFORE_UPLOAD = True  # Check disk space before each upload
 
 # ═══════════════════════════════════════════════════════════
@@ -58,12 +55,8 @@ MAX_RETRIES = 3
 RETRY_DELAY_BASE = 5
 TIMEOUT_PER_FILE = 3600
 SUPPORTED_EXTENSIONS = {".mp4", ".avi", ".mkv", ".mov", ".flv", ".webm", ".wmv", ".m4v"}
-FTP_CHUNK_SIZE = 8 * 1024 * 1024
-
 MIXDROP_API_URL = "https://ul.mixdrop.ag/api"
-MIXDROP_REMOTE_API_URL = "https://api.mixdrop.ag/remotedl/add"
 STREAMTAPE_API_URL = "https://api.streamtape.com/file/ul"
-DOODSTREAM_FTP_SERVER = "ftp.doodstream.com"
 
 
 def print_config():
