@@ -22,7 +22,7 @@ class AppContext:
 
     def __init__(self):
         config.print_config()
-        log.info("🚀 Starting Anime Video Uploader...")
+        log.info("🚀 Starting Auto Scan Video Uploader...")
 
         if config.CHECK_DISK_BEFORE_UPLOAD:
             video_folder = os.getenv("VIDEO_FOLDER", "./videos")

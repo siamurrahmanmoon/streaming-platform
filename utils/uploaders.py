@@ -106,7 +106,6 @@ def upload_to_doodstream_api(
         if result.get("status") == 200 and result.get("result"):
             file_info = result["result"][0]
             download_url = file_info.get("download_url")
-            log.info(f"DoodStream upload succeeded: {download_url}")
             return download_url
         raise Exception(f"API Upload Failed: {result.get('msg', 'Unknown error')}")
     except Exception as error:
