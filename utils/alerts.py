@@ -182,6 +182,27 @@ class AlertManager:
         await self.send_telegram(message)
         await self.send_discord(message, color=16711680)
 
+    async def notify_missing_video_year(self, filename: str, title: str):
+        message = f"<b>❌ Video Title Year Not Found!</b>\n\n"
+        message += f"<b>📁 File:</b> <code>{filename}</code>\n"
+        message += f"<b>📺 Title:</b> {title}\n"
+        message += "<b>🗓️ Year:</b> Not found\n\n"
+        message += (
+            "⚠️ The file was moved to the <code>unmatched_videos</code> folder.\n"
+        )
+        message += (
+            "💡 Rename the file according to the TMDB naming convention and use the "
+            "Title (Year) format:\n\n"
+        )
+        message += "<b>📺 TV Series:</b>\n"
+        message += "<code>Akane (2024) [Hindi]-S1E1-480P.mp4</code>\n\n"
+        message += "<b>🎞️ Movie:</b>\n"
+        message += "<code>Akane (2024) [Hindi]-1080P.mp4</code>\n\n"
+        message += "Then try again."
+
+        await self.send_telegram(message)
+        await self.send_discord(message, color=16711680)
+
     async def notify_critical(self, title: str, message: str):
         full_message = f"<b>🚨 {title}</b>\n\n{message}"
         await self.send_telegram(full_message)

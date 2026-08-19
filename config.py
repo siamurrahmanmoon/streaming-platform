@@ -19,6 +19,7 @@ ENABLE_STREAMTAPE = True
 # TMDB & Image Storage Settings (Optimized)
 # ═══════════════════════════════════════════════════════════
 ENABLE_TMDB_METADATA = True
+REQUIRE_YEAR_IN_FILENAME = True
 ENABLE_IMAGE_STORAGE = True
 SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "posters")
 UNMATCHED_VIDEOS_FOLDER = os.getenv("UNMATCHED_VIDEOS_FOLDER", "./unmatched_videos")

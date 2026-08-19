@@ -99,6 +99,15 @@ async def scan_and_upload(supabase_client, supabase_storage_client, folder_path:
             if Path(file).suffix.lower() in video_extensions:
                 file_path = os.path.join(root, file)
 
+                parsed = parse_video_filename(file)
+                if (
+                    config.REQUIRE_YEAR_IN_FILENAME
+                    and parsed
+                    and parsed.get("year") is None
+                ):
+                    video_files.append(file_path)
+                    continue
+
                 if config.CHECK_DUPLICATE_IN_DB:
                     try:
                         if not _video_exists_in_normalized_database(

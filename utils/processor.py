@@ -63,6 +63,12 @@ async def process_single_video(
         safe_archive_files([original_file_path], "failed")
         return
 
+    if config.REQUIRE_YEAR_IN_FILENAME and parsed.get("year") is None:
+        tqdm.write(f"❌ Missing year in filename: {file_name}")
+        await alert_manager.notify_missing_video_year(file_name, parsed["title"])
+        move_to_unmatched(original_file_path, file_name)
+        return
+
     metadata_obj = None
     if config.ENABLE_TMDB_METADATA:
         try:
