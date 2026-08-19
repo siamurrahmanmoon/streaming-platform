@@ -61,7 +61,6 @@ async def main():
                     f"🔍 Scan Cycle #{scan_count} | 📂 {scan_name} | 🔄 Scanning..."
                 )
                 print(f"\r{scan_status}   ", end="", flush=True)
-                print()
                 await scan_and_upload(
                     context.supabase, context.supabase_storage, video_folder
                 )
