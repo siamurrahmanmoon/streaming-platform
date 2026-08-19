@@ -63,6 +63,59 @@
 
 ## ️ ইনস্টলেশন ও সেটআপ
 
+## Windows Portable App তৈরি ও চালানো
+
+Source project চালানোর জন্য `run_uploader.bat` ব্যবহার করুন। Windows portable app বানাতে:
+
+1. `venv` তৈরি করুন এবং dependencies install করুন, অথবা `run_uploader.bat` একবার চালান।
+2. `build_windows.bat`-এ double-click করুন।
+3. Build শেষ হলে `dist\AnimeUploader` folder তৈরি হবে।
+4. এই পুরো folder ZIP করে অন্য Windows PC-তে copy করুন।
+5. অন্য PC-তে `run_portable.bat` double-click করুন।
+
+Target PC-তে Python, pip, venv বা source code লাগবে না। Folder-এর `.env` file-এ API settings রাখতে হবে।
+
+Portable folder-এর expected structure:
+
+```text
+AnimeUploader/
+├── AnimeUploader.exe
+├── run_portable.bat
+├── README.md
+├── .env
+├── videos/
+├── archive/
+├── unmatched_videos/
+├── quarantine/
+└── logs/
+```
+
+### Filename format
+
+TV Series:
+
+```text
+Akane (2024) [Hindi]-S1E1-480P.mp4
+ONE PIECE (1999) [Hindi]-S1E4-480P.mp4
+```
+
+Movie:
+
+```text
+Akane (2024) [Hindi]-1080P.mp4
+Your Name (2016) [Japanese]-1080P.mkv
+```
+
+Year validation চালু থাকলে `Title (Year)` অংশটি বাধ্যতামূলক। Year না থাকলে file `unmatched_videos` folder-এ move হবে এবং Telegram alert যাবে।
+
+### Portable app বন্ধ করা
+
+Command Prompt window-তে `Ctrl+C` চাপুন।
+
+### Portable app update
+
+নতুন version বানাতে source project-এ আবার `build_windows.bat` চালান। নতুন `dist\AnimeUploader` folder পুরনোটির জায়গায় ব্যবহার করুন এবং পুরনো `.env`, `videos`, `archive` প্রয়োজন হলে copy করে নিন।
+
 ### ১. রিপোজিটরি ক্লোন ও ভার্চুয়াল এনভায়রনমেন্ট তৈরি
 
 ```bash

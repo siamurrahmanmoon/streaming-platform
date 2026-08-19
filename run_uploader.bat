@@ -6,6 +6,12 @@ cd /d "%~dp0"
 echo Starting Anime Streaming Platform...
 echo.
 
+if exist "AnimeUploader.exe" (
+    echo Running portable application...
+    AnimeUploader.exe
+    goto end
+)
+
 where python >nul 2>&1
 if errorlevel 1 (
     echo Python is not installed or not available in PATH.
@@ -33,11 +39,12 @@ if not exist "venv\Scripts\python.exe" (
     )
 )
 
-echo Running application...
+echo Running source application...
 echo.
 
 "venv\Scripts\python.exe" main.py
 
+:end
 echo.
 echo Application stopped.
 pause
