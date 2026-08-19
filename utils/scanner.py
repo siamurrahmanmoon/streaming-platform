@@ -7,7 +7,69 @@ import sys
 # Ensure parent directory is in path for config import
 sys.path.append(str(Path(__file__).parent.parent))
 import config
+from utils.parser import parse_video_filename
 from utils.processor import process_single_video
+
+
+def _video_exists_in_normalized_database(supabase_client, file_name: str) -> bool:
+    parsed = parse_video_filename(file_name)
+    if not parsed:
+        return False
+
+    db_media_type = "tv_series" if parsed["media_type"] == "TV Series" else "movie"
+    language_code = (
+        "en"
+        if parsed["language_tag"].lower() == "original"
+        else parsed["language_tag"].lower()
+    )
+    media_query = (
+        supabase_client.table("media")
+        .select("id")
+        .eq("title", parsed["title"])
+        .eq("media_type", db_media_type)
+        .eq("language_code", language_code)
+    )
+    if parsed.get("year") is not None:
+        media_query = media_query.eq("release_year", parsed["year"])
+
+    media_result = media_query.limit(1).execute()
+    if not media_result.data:
+        return False
+
+    media_id = media_result.data[0]["id"]
+    source_query = (
+        supabase_client.table("video_sources")
+        .select("id")
+        .eq("quality", parsed["quality"])
+    )
+
+    if parsed["media_type"] == "TV Series":
+        season_result = (
+            supabase_client.table("seasons")
+            .select("id")
+            .eq("media_id", media_id)
+            .eq("season_number", parsed["season"])
+            .limit(1)
+            .execute()
+        )
+        if not season_result.data:
+            return False
+
+        episode_result = (
+            supabase_client.table("episodes")
+            .select("id")
+            .eq("season_id", season_result.data[0]["id"])
+            .eq("episode_number", parsed["episode"])
+            .limit(1)
+            .execute()
+        )
+        if not episode_result.data:
+            return False
+        source_query = source_query.eq("episode_id", episode_result.data[0]["id"])
+    else:
+        source_query = source_query.eq("media_id", media_id)
+
+    return bool(source_query.limit(1).execute().data)
 
 
 async def scan_and_upload(supabase_client, supabase_storage_client, folder_path: str):
@@ -39,14 +101,9 @@ async def scan_and_upload(supabase_client, supabase_storage_client, folder_path:
 
                 if config.CHECK_DUPLICATE_IN_DB:
                     try:
-                        # ✅ Updated: Using supabase_client directly instead of uploader.supabase
-                        result = (
-                            supabase_client.table("videos")
-                            .select("id")
-                            .eq("file_path", file_path)
-                            .execute()
-                        )
-                        if len(result.data) == 0:
+                        if not _video_exists_in_normalized_database(
+                            supabase_client, file
+                        ):
                             video_files.append(file_path)
                         else:
                             write_scan_message(f"⏭️  Already in database: {file}")

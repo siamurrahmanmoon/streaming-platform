@@ -187,17 +187,17 @@ async def fetch_and_process_metadata(
     async with _metadata_locks[lock_key]:
         # 1. Check DB
         try:
+            db_media_type = "tv_series" if media_type == "TV Series" else "movie"
             query = (
-                supabase_client.table("videos")
-                .select("poster_url, tmdb_id, release_year")
+                supabase_client.table("media")
+                .select(
+                    "title, media_type, tmdb_id, release_year, overview, "
+                    "poster_url, backdrop_url, original_language, total_episodes, "
+                    "popularity_score"
+                )
                 .eq("title", title)
-                .eq("media_type", media_type)
+                .eq("media_type", db_media_type)
             )
-            if season is not None:
-                query = query.eq("season", season)
-            else:
-                query = query.is_("season", None)
-
             if year is not None:
                 query = query.eq("release_year", year)
 
@@ -211,7 +211,13 @@ async def fetch_and_process_metadata(
                 tqdm.write(
                     f"✅ {media_type} '{title}' ({year}) metadata found in DB. Reusing..."
                 )
-                return result.data[0]
+                cached_metadata = result.data[0]
+                cached_metadata["media_type"] = media_type
+                cached_metadata["banner_url"] = cached_metadata.pop("backdrop_url", "")
+                cached_metadata["vote_average"] = (
+                    cached_metadata.get("popularity_score", 0.0) or 0.0
+                ) / 10
+                return cached_metadata
             elif year is not None:
                 tqdm.write(
                     f"ℹ️ No matching metadata for '{title}' ({year}) in DB. Fetching fresh..."
@@ -310,39 +316,29 @@ async def fetch_and_process_metadata(
         if any(image_urls.values()) or metadata.get("poster_url"):
             full_meta = {**metadata, **image_urls}
             try:
+                db_media_type = "tv_series" if media_type == "TV Series" else "movie"
                 query = (
-                    supabase_client.table("videos")
+                    supabase_client.table("media")
                     .select("id")
                     .eq("title", title)
-                    .eq("media_type", media_type)
+                    .eq("media_type", db_media_type)
                 )
-                if season is not None:
-                    query = query.eq("season", season)
-                else:
-                    query = query.is_("season", None)
                 if year is not None:
                     query = query.eq("release_year", year)
 
                 res = query.execute()
                 for row in res.data:
-                    supabase_client.table("videos").update(
+                    supabase_client.table("media").update(
                         {
                             "tmdb_id": full_meta.get("tmdb_id"),
-                            "media_type": full_meta.get("media_type"),
                             "release_year": full_meta.get("release_year"),
-                            "total_seasons": full_meta.get("total_seasons"),
                             "total_episodes": full_meta.get("total_episodes"),
-                            "tmdb_status": full_meta.get("tmdb_status"),
                             "original_language": full_meta.get("original_language"),
-                            "networks": full_meta.get("networks"),
-                            "creators": full_meta.get("creators"),
                             "overview": full_meta.get("overview"),
-                            "genres": full_meta.get("genres"),
-                            "vote_average": full_meta.get("vote_average"),
                             "poster_url": full_meta.get("poster_url"),
-                            "banner_url": full_meta.get("banner_url"),
-                            "thumbnail_url": full_meta.get("thumbnail_url"),
-                            "updated_at": datetime.now().isoformat(),
+                            "backdrop_url": full_meta.get("banner_url"),
+                            "popularity_score": (full_meta.get("vote_average") or 0.0)
+                            * 10,
                         }
                     ).eq("id", row["id"]).execute()
 

@@ -6,6 +6,7 @@ from typing import Optional
 from urllib.parse import quote
 
 import requests
+import urllib3
 from tqdm import tqdm
 
 import config
@@ -13,6 +14,8 @@ from utils.logger import get_logger
 from utils.retry import retry_with_backoff
 
 log = get_logger("uploaders")
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class UploadProgress(requests.adapters.HTTPAdapter):
@@ -99,7 +102,8 @@ def upload_to_doodstream_api(
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                         "AppleWebKit/537.36 (KHTML, like Gecko) "
                         "Chrome/115.0.0.0 Safari/537.36"
-                    )
+                    ),
+                    "Connection": "close",
                 },
                 verify=False,
                 timeout=config.TIMEOUT_PER_FILE,
