@@ -78,7 +78,6 @@ async def main():
                     await asyncio.sleep(1)
                 scan_count += 1
         else:
-            # ✅ FIXED: Pass both clients here too
             await scan_and_upload(
                 context.supabase, context.supabase_storage, video_folder
             )
