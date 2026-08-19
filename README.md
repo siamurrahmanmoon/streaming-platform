@@ -539,7 +539,7 @@ SSLEOFError(8, 'EOF occurred in violation of protocol')
 ```
 **Solution:**
 1. Check `.env` file
-2. Verify `SUPABASE_URL` and `SUPABASE_KEY`
+2. Verify `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
 3. Check internet connection
 
 ---
