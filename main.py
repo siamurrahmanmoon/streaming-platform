@@ -31,7 +31,11 @@ class AppContext:
         supabase_url = os.getenv("SUPABASE_URL")
 
         # Standard client for Database operations
-        self.supabase = create_client(supabase_url, os.getenv("SUPABASE_KEY"))
+        # Note: This client will be subject to RLS policies
+        # SUPABASE_SERVICE_ROLE_KEY ← এটি RLS bypass করে
+        self.supabase = create_client(
+            supabase_url, os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
 
         # Service role client for Storage operations (Bypasses RLS)
         service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
