@@ -1,5 +1,6 @@
 import asyncio
 import os
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
@@ -8,7 +9,7 @@ from tqdm import tqdm
 
 import config
 from utils.alerts import alert_manager
-from utils.database import save_to_supabase
+from utils.db_manager import get_db_manager
 from utils.disk_monitor import disk_monitor
 from utils.file_manager import (
     cleanup_temp_staging,
@@ -162,14 +163,82 @@ async def process_single_video(
     if upload_path != original_file_path:
         cleanup_temp_staging(upload_path)
 
-    db_result = save_to_supabase(supabase_client, metadata)
-    if db_result and metadata.status == "completed":
-        tqdm.write(f"✅ DB Updated: {metadata.status} | Links: {uploaded_count}/3")
-        await alert_manager.notify_video_upload_success(metadata)
-    elif metadata.status == "failed":
-        tqdm.write("❌ Upload Failed!")
-        await alert_manager.notify_critical(
-            "Upload Failed", f"File: {file_name}\nNo platform upload succeeded."
+    # ==========================================
+    # NEW NORMALIZED DATABASE SAVE LOGIC
+    # ==========================================
+    db_manager = get_db_manager(supabase_client)
+
+    if not config.ENABLE_DATABASE_SAVE:
+        return
+
+    # 1. Prepare video sources list
+    video_sources = []
+    if metadata.doodstream_url:
+        video_sources.append(
+            {
+                "server_name": "DoodStream",
+                "quality": metadata.quality,
+                "video_url": metadata.doodstream_url,
+                "is_default": True,
+            }
         )
-    elif not db_result:
-        tqdm.write("⚠️ DB Save failed!")
+    if metadata.mixdrop_url:
+        video_sources.append(
+            {
+                "server_name": "MixDrop",
+                "quality": metadata.quality,
+                "video_url": metadata.mixdrop_url,
+            }
+        )
+    if metadata.streamtape_url:
+        video_sources.append(
+            {
+                "server_name": "StreamTape",
+                "quality": metadata.quality,
+                "video_url": metadata.streamtape_url,
+            }
+        )
+
+    try:
+        # 2. Save/Get Media ID
+        media_id = db_manager.ensure_media_exists(
+            title=metadata.title,
+            media_type=metadata.media_type,
+            language_tag=metadata.language_tag,
+            year=metadata.release_year,
+            metadata=asdict(metadata),
+        )
+
+        if media_id:
+            # 3. Save Genres
+            db_manager.save_genres(media_id, metadata.genres)
+
+            # 4. Handle Series (Seasons & Episodes) vs Movies
+            episode_id = None
+            if (
+                metadata.media_type == "TV Series"
+                and metadata.season
+                and metadata.episode
+            ):
+                season_id = db_manager.ensure_season_exists(media_id, metadata.season)
+                if season_id:
+                    episode_title = f"Episode {metadata.episode}"
+                    episode_id = db_manager.ensure_episode_exists(
+                        season_id, metadata.episode, episode_title
+                    )
+
+            # 5. Save Video Sources
+            if video_sources:
+                db_manager.save_video_sources(episode_id, media_id, video_sources)
+
+            tqdm.write(
+                f"✅ Database Updated: Media ID {media_id} | Episode ID {episode_id} "
+                f"| Links: {len(video_sources)}/3"
+            )
+            if metadata.status == "completed":
+                await alert_manager.notify_video_upload_success(metadata)
+        else:
+            tqdm.write("⚠️ Failed to save media to database!")
+    except Exception as error:
+        log.exception(f"❌ Normalized database save failed: {error}")
+        tqdm.write(f"❌ Database save failed: {error}")

@@ -94,6 +94,14 @@ def upload_to_doodstream_api(
             response = requests.post(
                 f"{upload_url}?{api_key}",
                 files=files,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/115.0.0.0 Safari/537.36"
+                    )
+                },
+                verify=False,
                 timeout=config.TIMEOUT_PER_FILE,
             )
 
