@@ -395,7 +395,6 @@ ENABLE_STREAMTAPE = True               # Enable StreamTape upload
 ### Performance
 ```python
 MAX_CONCURRENT_UPLOADS = 3             # Max parallel uploads
-BANDWIDTH_LIMIT_MBPS = 0               # 0 = no limit
 MAX_RETRIES = 3                        # Max retry attempts
 TIMEOUT_PER_FILE = 3600                # Timeout per file (seconds)
 ```

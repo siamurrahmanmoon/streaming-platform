@@ -1,7 +1,5 @@
 import os
-import sys
 import asyncio
-from pathlib import Path
 from supabase import create_client
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -83,8 +81,6 @@ async def main():
             )
             tqdm.write("✅ Single scan completed.")
 
-    except KeyboardInterrupt:
-        tqdm.write("\n\n🛑 Stopped by user. Exiting gracefully...")
     except Exception as e:
         tqdm.write(f"❌ Fatal error: {e}")
         import traceback
@@ -93,7 +89,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    sys.path.append(str(Path(__file__).parent))
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

@@ -12,7 +12,6 @@ class DiskMonitor:
     ):
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
-        self.last_alert_time = 0
 
     def get_disk_usage(self, path: str = "/") -> Tuple[float, float, float]:
         """Returns (total, used, free) in GB"""

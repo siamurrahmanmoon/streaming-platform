@@ -50,7 +50,6 @@ CHECK_DISK_BEFORE_UPLOAD = True  # Check disk space before each upload
 # Performance & API
 # ═══════════════════════════════════════════════════════════
 MAX_CONCURRENT_UPLOADS = 3
-BANDWIDTH_LIMIT_MBPS = 0  # 0 means no limit
 MAX_RETRIES = 3
 RETRY_DELAY_BASE = 5
 TIMEOUT_PER_FILE = 3600
