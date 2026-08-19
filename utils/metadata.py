@@ -371,7 +371,7 @@ async def fetch_and_process_metadata(
                 count = len(res.data)
                 if count == 0:
                     tqdm.write(
-                        "ℹ️ Metadata fetched. Will be saved when current file saves to DB."
+                        "🔠 Metadata fetched. Will be saved when current file saves to DB."
                     )
                 else:
                     tqdm.write(f"✅ Metadata updated in DB for {count} existing files!")

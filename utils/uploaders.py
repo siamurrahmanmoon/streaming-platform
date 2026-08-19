@@ -60,7 +60,7 @@ def upload_to_doodstream_api(
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
-            desc=f"Dood: {file_name[:35]}",
+            desc=f"🟠 DD: {file_name[:35]}",
             position=progress_id,
             ncols=100,
         ) as pbar:
@@ -118,7 +118,7 @@ def upload_to_mixdrop(
             total=file_size,
             unit="B",
             unit_scale=True,
-            desc=f"Mix: {file_name[:30]}",
+            desc=f"🔵 Mix: {file_name[:30]}",
             position=progress_id,
             ncols=100,
         ) as pbar:
@@ -167,7 +167,7 @@ def upload_to_streamtape(
             total=file_size,
             unit="B",
             unit_scale=True,
-            desc=f"ST: {file_name[:30]}",
+            desc=f"🟣 ST: {file_name[:30]}",
             position=progress_id,
             ncols=100,
         ) as pbar:

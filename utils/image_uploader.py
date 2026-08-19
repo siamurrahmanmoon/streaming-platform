@@ -46,7 +46,7 @@ async def upload_image_to_supabase(
                 file_path
             )
             tqdm.write(
-                f"ℹ️ {image_type.capitalize()} already exists in Storage. Using existing URL."
+                f"🎴 {image_type.capitalize()} already exists in Storage. Using existing URL."
             )
             return public_url
 
