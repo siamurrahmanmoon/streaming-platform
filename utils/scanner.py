@@ -15,8 +15,17 @@ async def scan_and_upload(supabase_client, supabase_storage_client, folder_path:
     Scans the folder for new videos, checks DB for duplicates,
     and uploads them concurrently based on config.MAX_CONCURRENT_UPLOADS.
     """
+    status_line_open = True
+
+    def write_scan_message(message: str):
+        nonlocal status_line_open
+        if status_line_open:
+            print()
+            status_line_open = False
+        tqdm.write(message)
+
     if not os.path.exists(folder_path):
-        tqdm.write(f"❌ Folder not found: {folder_path}")
+        write_scan_message(f"❌ Folder not found: {folder_path}")
         return
 
     video_extensions = set(ext.lower() for ext in config.SUPPORTED_EXTENSIONS)
@@ -40,16 +49,20 @@ async def scan_and_upload(supabase_client, supabase_storage_client, folder_path:
                         if len(result.data) == 0:
                             video_files.append(file_path)
                         else:
-                            tqdm.write(f"⏭️  Already in database: {file}")
+                            write_scan_message(f"⏭️  Already in database: {file}")
                             try:
                                 os.remove(file_path)
-                                tqdm.write(f"🗑️  Deleted local duplicate: {file}")
+                                write_scan_message(
+                                    f"🗑️  Deleted local duplicate: {file}"
+                                )
                             except OSError as e:
-                                tqdm.write(
+                                write_scan_message(
                                     f"⚠️  Could not delete local duplicate {file}: {e}"
                                 )
                     except Exception as e:
-                        tqdm.write(f"⚠️ DB check failed for {file}, adding anyway: {e}")
+                        write_scan_message(
+                            f"⚠️ DB check failed for {file}, adding anyway: {e}"
+                        )
                         video_files.append(file_path)
                 else:
                     video_files.append(file_path)
@@ -57,8 +70,8 @@ async def scan_and_upload(supabase_client, supabase_storage_client, folder_path:
     if not video_files:
         return
 
-    tqdm.write(f"\n📁 Found {len(video_files)} new videos to upload")
-    tqdm.write(
+    write_scan_message(f"📁 Found {len(video_files)} new videos to upload")
+    write_scan_message(
         f"⚡ Concurrent Upload Limit: {config.MAX_CONCURRENT_UPLOADS} files at a time\n"
     )
 
@@ -79,6 +92,4 @@ async def scan_and_upload(supabase_client, supabase_storage_client, folder_path:
     ]
     await asyncio.gather(*tasks, return_exceptions=True)
 
-    tqdm.write(f"\n{'='*70}")
-    tqdm.write(f"✅ All {len(video_files)} videos processed in this batch!")
-    tqdm.write(f"{'='*70}")
+    write_scan_message(f"✅ All {len(video_files)} videos processed in this batch!")
