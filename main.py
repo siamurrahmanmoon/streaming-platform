@@ -23,7 +23,7 @@ class AppContext:
         log.info("🚀 Starting Auto Scan Video Uploader...")
 
         if config.CHECK_DISK_BEFORE_UPLOAD:
-            video_folder = os.getenv("VIDEO_FOLDER", "./videos")
+            video_folder = config.VIDEO_FOLDER
             asyncio.create_task(disk_monitor.check_and_alert(video_folder))
 
         supabase_url = os.getenv("SUPABASE_URL")
@@ -49,7 +49,7 @@ class AppContext:
 async def main():
     try:
         context = AppContext()
-        video_folder = os.getenv("VIDEO_FOLDER", "./videos")
+        video_folder = config.VIDEO_FOLDER
 
         if config.ENABLE_ORPHAN_CLEANUP:
             cleanup_orphaned_files(video_folder)

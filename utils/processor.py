@@ -38,7 +38,7 @@ async def process_single_video(
     video_index: int = 0,
 ):
     if config.CHECK_DISK_BEFORE_UPLOAD:
-        video_folder = os.getenv("VIDEO_FOLDER", "./videos")
+        video_folder = config.VIDEO_FOLDER
         if not await disk_monitor.check_and_alert(video_folder):
             log.error("🚨 Disk space critical! Skipping upload.")
             await alert_manager.notify_critical(

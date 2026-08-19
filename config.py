@@ -7,6 +7,7 @@ ENABLE_CONTINUOUS_SCAN = True
 SCAN_INTERVAL_SECONDS = 30
 ENABLE_DATABASE_SAVE = True
 CHECK_DUPLICATE_IN_DB = True
+VIDEO_FOLDER = os.getenv("VIDEO_FOLDER", "./videos")
 
 # ═══════════════════════════════════════════════════════════
 # Platform Toggles (Video)
