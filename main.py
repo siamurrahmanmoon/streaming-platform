@@ -94,4 +94,7 @@ async def main():
 
 if __name__ == "__main__":
     sys.path.append(str(Path(__file__).parent))
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        tqdm.write("\n\n🛑 Stopped by user. Exiting gracefully...")
