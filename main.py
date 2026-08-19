@@ -55,16 +55,24 @@ async def main():
         if config.ENABLE_CONTINUOUS_SCAN:
             tqdm.write("🔄 Continuous scan mode ENABLED. Press Ctrl+C to stop.")
             scan_count = 1
+            scan_name = os.path.basename(os.path.normpath(video_folder))
             while True:
-                tqdm.write(f"\n{'='*60}\n🔍 Scan Cycle #{scan_count}\n{'='*60}")
-                # ✅ FIXED: Pass both supabase (for DB) and supabase_storage (for Images)
+                scan_status = (
+                    f"🔍 Scan Cycle #{scan_count} | 📂 {scan_name} | 🔄 Scanning..."
+                )
+                print(f"\r{scan_status}   ", end="", flush=True)
+                print()
                 await scan_and_upload(
                     context.supabase, context.supabase_storage, video_folder
                 )
-                tqdm.write(
-                    f"\n⏳ Waiting {config.SCAN_INTERVAL_SECONDS}s before next scan..."
-                )
-                await asyncio.sleep(config.SCAN_INTERVAL_SECONDS)
+
+                for seconds_left in range(config.SCAN_INTERVAL_SECONDS, 0, -1):
+                    wait_status = (
+                        f"🔍 Scan Cycle #{scan_count} | 📂 {scan_name} | "
+                        f"⏳ Next scan in {seconds_left}s..."
+                    )
+                    print(f"\r{wait_status}   ", end="", flush=True)
+                    await asyncio.sleep(1)
                 scan_count += 1
         else:
             # ✅ FIXED: Pass both clients here too

@@ -22,8 +22,6 @@ async def scan_and_upload(supabase_client, supabase_storage_client, folder_path:
     video_extensions = set(ext.lower() for ext in config.SUPPORTED_EXTENSIONS)
     video_files = []
 
-    tqdm.write(f"🔍 Scanning folder: {folder_path}\n")
-
     # 1. Scan files and check duplicates
     for root, dirs, files in os.walk(folder_path):
         for file in files:
@@ -57,7 +55,6 @@ async def scan_and_upload(supabase_client, supabase_storage_client, folder_path:
                     video_files.append(file_path)
 
     if not video_files:
-        tqdm.write("✅ No new videos found in this scan!")
         return
 
     tqdm.write(f"\n📁 Found {len(video_files)} new videos to upload")
