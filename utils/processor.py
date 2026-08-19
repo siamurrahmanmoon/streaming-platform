@@ -212,6 +212,7 @@ async def process_single_video(
         if media_id:
             # 3. Save Genres
             db_manager.save_genres(media_id, metadata.genres)
+            db_manager.save_tags(media_id, metadata.keywords)
 
             # 4. Handle Series (Seasons & Episodes) vs Movies
             episode_id = None

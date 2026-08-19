@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+
 @dataclass
 class VideoMetadata:
     file_path: str
@@ -11,7 +12,7 @@ class VideoMetadata:
     season: Optional[int] = None
     episode: Optional[int] = None
     episode_number: Optional[str] = None
-    languages: List[str] = field(default_factory=lambda: ['Original'])
+    languages: List[str] = field(default_factory=lambda: ["Original"])
     language_tag: str = "original"
     quality: str = "unknown"
     upload_date: str = ""
@@ -29,6 +30,7 @@ class VideoMetadata:
     tmdb_id: int = 0
     overview: str = ""
     genres: List[Dict[str, str]] = field(default_factory=list)
+    keywords: List[Dict[str, str]] = field(default_factory=list)
     vote_average: float = 0.0
     poster_url: str = ""
     banner_url: str = ""

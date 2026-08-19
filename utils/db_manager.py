@@ -240,6 +240,30 @@ class DatabaseManager:
             except Exception as e:
                 logger.error(f"Error linking genre {genre_name}: {e}")
 
+    def save_tags(self, media_id: str, tags: List[Dict]):
+        """Inserts keywords and tags linked to a media row."""
+        if not tags:
+            return
+
+        for tag in tags:
+            tag_name = tag.get("name") if isinstance(tag, dict) else tag
+            tag_type = (
+                tag.get("type", "keyword") if isinstance(tag, dict) else "keyword"
+            )
+            if not tag_name:
+                continue
+
+            try:
+                self.supabase.table("media_tags").insert(
+                    {
+                        "media_id": media_id,
+                        "tag_name": tag_name,
+                        "tag_type": tag_type,
+                    }
+                ).execute()
+            except Exception as e:
+                logger.debug(f"Tag {tag_name} insert skipped or failed: {e}")
+
 
 # Global instance helper
 def get_db_manager(supabase_client: Client) -> DatabaseManager:

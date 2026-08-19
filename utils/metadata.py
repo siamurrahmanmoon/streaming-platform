@@ -91,6 +91,19 @@ class TMDBMetadataFetcher:
             ) as response:
                 if response.status == 200:
                     tv_data = await response.json()
+                    keywords_list = []
+                    async with self.session.get(
+                        f"{self.base_url}/tv/{tv_id}/keywords",
+                        params={"api_key": self.api_key},
+                    ) as keywords_response:
+                        if keywords_response.status == 200:
+                            keywords_data = await keywords_response.json()
+                            keywords_list = [
+                                {"name": keyword["name"], "type": "keyword"}
+                                for keyword in keywords_data.get("results", [])
+                                if keyword.get("name")
+                            ]
+
                     release_date_str = tv_data.get("first_air_date", "")
                     return {
                         "tmdb_id": tv_id,
@@ -113,6 +126,7 @@ class TMDBMetadataFetcher:
                         "vote_average": float(tv_data.get("vote_average", 0.0)),
                         "poster_path": tv_data.get("poster_path"),
                         "backdrop_path": tv_data.get("backdrop_path"),
+                        "keywords": keywords_list,
                     }
             return None
         except Exception as e:
@@ -127,6 +141,19 @@ class TMDBMetadataFetcher:
             ) as response:
                 if response.status == 200:
                     m_data = await response.json()
+                    keywords_list = []
+                    async with self.session.get(
+                        f"{self.base_url}/movie/{movie_id}/keywords",
+                        params={"api_key": self.api_key},
+                    ) as keywords_response:
+                        if keywords_response.status == 200:
+                            keywords_data = await keywords_response.json()
+                            keywords_list = [
+                                {"name": keyword["name"], "type": "keyword"}
+                                for keyword in keywords_data.get("keywords", [])
+                                if keyword.get("name")
+                            ]
+
                     release_date_str = m_data.get("release_date", "")
                     return {
                         "tmdb_id": movie_id,
@@ -151,6 +178,7 @@ class TMDBMetadataFetcher:
                         "vote_average": float(m_data.get("vote_average", 0.0)),
                         "poster_path": m_data.get("poster_path"),
                         "backdrop_path": m_data.get("backdrop_path"),
+                        "keywords": keywords_list,
                     }
             return None
         except Exception as e:
