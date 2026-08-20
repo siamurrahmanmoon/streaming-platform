@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import config
-from utils.logger import get_logger
+from core.logger import get_logger
 from utils.cleanup import cleanup_orphaned_files
 from utils.scanner import scan_and_upload
 from utils.disk_monitor import disk_monitor

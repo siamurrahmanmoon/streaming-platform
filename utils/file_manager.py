@@ -9,7 +9,7 @@ from tqdm import tqdm
 # Ensure parent directory is in path for config import
 sys.path.append(str(Path(__file__).parent.parent))
 import config
-from utils.logger import get_logger
+from core.logger import get_logger
 
 log = get_logger("file_manager")
 

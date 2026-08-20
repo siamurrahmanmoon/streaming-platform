@@ -17,11 +17,11 @@ from utils.file_manager import (
     prepare_and_package,
     safe_archive_files,
 )
-from utils.integrity import check_file_integrity
-from utils.logger import get_logger
+from core.integrity import check_file_integrity
+from core.logger import get_logger
+from core.models import VideoMetadata
+from core.parser import parse_video_filename
 from utils.metadata import fetch_and_process_metadata
-from utils.models import VideoMetadata
-from utils.parser import parse_video_filename
 from utils.uploaders import (
     upload_to_doodstream_api,
     upload_to_mixdrop,

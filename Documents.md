@@ -718,7 +718,6 @@ anime-streaming-platform/backend/
 │
 ├── Dockerfile                  # Docker ইমেজ ডেফিনিশন
 ├── docker-compose.yml          # Docker Compose সার্ভিস কনফিগ
-├── Docker Documention.md       # Docker ডিপ্লয়মেন্ট গাইড
 │
 ├── AnimeUploader.spec          # PyInstaller বিল্ড স্পেক (Windows)
 ├── build_windows.bat           # Windows পোর্টেবল বিল্ড স্ক্রিপ্ট
@@ -727,7 +726,15 @@ anime-streaming-platform/backend/
 │
 ├── Documents.md                # এই ডকুমেন্টেশন ফাইল
 │
-├── utils/                      # কোর ইউটিলিটি মডিউল (১৭টি ফাইল)
+├── core/                       # কোর/ফাউন্ডেশনাল মডিউল (৫টি ফাইল)
+│   ├── __init__.py
+│   ├── integrity.py            # ফাইল ইন্টিগ্রিটি চেক
+│   ├── logger.py               # Loguru-based লগিং
+│   ├── models.py               # VideoMetadata dataclass (৩৭টি ফিল্ড)
+│   ├── parser.py               # Regex-based ফাইলনেম পার্সিং
+│   └── retry.py                # রিট্রাই ডেকোরেটর (exponential backoff)
+│
+├── utils/                      # বিজনেস লজিক মডিউল (১১টি ফাইল)
 │   ├── __init__.py
 │   ├── alerts.py               # Telegram ও Discord নোটিফিকেশন
 │   ├── cleanup.py              # অরফান ফাইল কোয়ারেন্টাইন লজিক
@@ -735,14 +742,9 @@ anime-streaming-platform/backend/
 │   ├── disk_monitor.py         # ডিস্ক স্পেস মনিটরিং
 │   ├── file_manager.py         # ফাইল অপারেশন (archive, move, ZIP)
 │   ├── image_uploader.py       # Supabase Storage ইমেজ আপলোড
-│   ├── integrity.py            # ফাইল ইন্টিগ্রিটি চেক
-│   ├── logger.py               # Loguru-based লগিং
 │   ├── metadata.py             # TMDB মেটাডাটা ফেচিং (async)
-│   ├── models.py               # VideoMetadata dataclass (৩৭টি ফিল্ড)
 │   ├── omdb_fetcher.py         # OMDb API ফলব্যাক ফেচার
-│   ├── parser.py               # Regex-based ফাইলনেম পার্সিং
 │   ├── processor.py            # মূল ভিডিও প্রসেসিং পাইপলাইন
-│   ├── retry.py                # রিট্রাই ডেকোরেটর (exponential backoff)
 │   ├── scanner.py              # ফোল্ডার স্ক্যানিং ও ডুপ্লিকেট ডিটেকশন
 │   └── uploaders.py            # DoodStream/MixDrop/StreamTape আপলোডার
 │

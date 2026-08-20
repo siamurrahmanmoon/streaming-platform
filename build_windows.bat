@@ -51,7 +51,7 @@ if not exist "dist\AnimeUploader\quarantine" mkdir "dist\AnimeUploader\quarantin
 if not exist "dist\AnimeUploader\logs" mkdir "dist\AnimeUploader\logs"
 
 copy /y "run_portable.bat" "dist\AnimeUploader\run_portable.bat" >nul
-copy /y "README.md" "dist\AnimeUploader\README.md" >nul
+copy /y "Documents.md" "dist\AnimeUploader\README.md" >nul
 
 echo.
 echo Build completed successfully.

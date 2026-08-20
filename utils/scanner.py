@@ -7,7 +7,7 @@ import sys
 # Ensure parent directory is in path for config import
 sys.path.append(str(Path(__file__).parent.parent))
 import config
-from utils.parser import parse_video_filename
+from core.parser import parse_video_filename
 from utils.processor import process_single_video
 
 

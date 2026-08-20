@@ -10,8 +10,8 @@ import urllib3
 from tqdm import tqdm
 
 import config
-from utils.logger import get_logger
-from utils.retry import retry_with_backoff
+from core.logger import get_logger
+from core.retry import retry_with_backoff
 
 log = get_logger("uploaders")
 
