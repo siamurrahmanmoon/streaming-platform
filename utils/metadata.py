@@ -239,7 +239,7 @@ async def fetch_and_process_metadata(
                 )
                 cached_metadata = result.data[0]
                 cached_metadata["media_type"] = media_type
-                cached_metadata["banner_url"] = cached_metadata.pop("backdrop_url", "")
+                cached_metadata["backdrop_url"] = cached_metadata.pop("backdrop_url", "")
                 cached_metadata["vote_average"] = (
                     cached_metadata.get("popularity_score", 0.0) or 0.0
                 ) / 10
@@ -286,7 +286,7 @@ async def fetch_and_process_metadata(
             )
 
             tmdb_id = metadata.get("tmdb_id")
-            image_urls = {"poster_url": "", "banner_url": "", "thumbnail_url": ""}
+            image_urls = {"poster_url": "", "backdrop_url": "", "thumbnail_url": ""}
 
             # 3. Upload TMDB or direct OMDb images.
             poster_path = metadata.get("poster_path") or metadata.get("poster_url")
@@ -325,7 +325,7 @@ async def fetch_and_process_metadata(
                         season or 1,
                     )
                     if url:
-                        image_urls["banner_url"] = url
+                        image_urls["backdrop_url"] = url
 
                     url = await upload_image_to_supabase(
                         supabase_storage_client,
@@ -362,7 +362,7 @@ async def fetch_and_process_metadata(
                             "original_language": full_meta.get("original_language"),
                             "overview": full_meta.get("overview"),
                             "poster_url": full_meta.get("poster_url"),
-                            "backdrop_url": full_meta.get("banner_url"),
+                            "backdrop_url": full_meta.get("backdrop_url"),
                             "popularity_score": (full_meta.get("vote_average") or 0.0)
                             * 10,
                         }

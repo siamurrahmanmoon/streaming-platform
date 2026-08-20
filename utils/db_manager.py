@@ -90,7 +90,7 @@ class DatabaseManager:
                 {
                     "overview": metadata.get("overview"),
                     "poster_url": metadata.get("poster_url"),
-                    "backdrop_url": metadata.get("banner_url"),
+                    "backdrop_url": metadata.get("backdrop_url"),
                     "tmdb_id": metadata.get("tmdb_id"),
                     "original_language": metadata.get("original_language"),
                     "total_episodes": metadata.get("total_episodes", 0),
